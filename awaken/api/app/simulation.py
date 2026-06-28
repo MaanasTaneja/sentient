@@ -46,10 +46,14 @@ def unprocessed_events(
     stmt = (
         select(models.FactionEvent)
         .where(
-            models.FactionEvent.faction_id == npc.faction_id,
+            or_(
+                models.FactionEvent.faction_id == npc.faction_id,
+                models.FactionEvent.visibility == "GLOBAL",
+            ),
             models.FactionEvent.id > after_id,
             or_(
                 models.FactionEvent.visibility == "PUBLIC",
+                models.FactionEvent.visibility == "GLOBAL",
                 models.FactionEvent.target_npc_id == npc.id,
             ),
         )

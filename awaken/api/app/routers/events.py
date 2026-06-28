@@ -7,13 +7,24 @@ from ..db import get_db
 router = APIRouter(prefix="/worlds/{world_id}", tags=["events"])
 
 
+def _completion_rules(rule: dict) -> list[dict]:
+    rules = rule.get("events")
+    if isinstance(rules, list):
+        return [item for item in rules if isinstance(item, dict)]
+    return [rule]
+
+
 def _apply_quest_completions(db: Session, event: models.FactionEvent) -> None:
     payload = event.payload_json or {}
     for quest in db.query(models.Quest).filter_by(world_id=event.world_id).all():
-        rule = quest.completion_event_json or {}
-        if rule.get("event_type") != event.event_type:
-            continue
-        if any(payload.get(key) != value for key, value in (rule.get("filters") or {}).items()):
+        if not any(
+            rule.get("event_type") == event.event_type
+            and not any(
+                payload.get(key) != value
+                for key, value in (rule.get("filters") or {}).items()
+            )
+            for rule in _completion_rules(quest.completion_event_json or {})
+        ):
             continue
         player_id = event.actor_id or "player_1"
         player_quest = db.get(models.PlayerQuest, (player_id, quest.id))

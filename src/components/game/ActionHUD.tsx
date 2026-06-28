@@ -14,6 +14,10 @@ export function ActionHUD({ ctx, worldDefinition, offline, onAfterEvent }: Props
   const [toast, setToast] = useState<string | null>(null);
   const events = getWorldEvents(worldDefinition);
 
+  function marker(eventType: string) {
+    return /ATTACKED|STOLEN|SABOTAGED|DESTROYED/.test(eventType) ? "⚔" : "✦";
+  }
+
   async function fire(evId: string) {
     const ev = events.find((e) => e.id === evId)!;
     setBusy(evId);
@@ -61,7 +65,7 @@ export function ActionHUD({ ctx, worldDefinition, offline, onAfterEvent }: Props
               className="block w-full border border-amber-800/70 bg-gradient-to-b from-amber-950/60 to-black/80 px-2 py-1.5 text-left font-serif text-xs text-amber-100 transition hover:border-amber-400 hover:text-amber-50 disabled:opacity-40"
             >
               <span className="mr-1 text-amber-500/70">›</span>
-              {busy === e.id ? "..." : e.label}
+              {busy === e.id ? "..." : `${marker(e.event_type)} ${e.label}`}
             </button>
           ))}
         </div>

@@ -119,7 +119,7 @@ class EntityOut(BaseModel):
 
 # ---------- Events ----------
 
-Visibility = Literal["PUBLIC", "DIRECT", "SECRET"]
+Visibility = Literal["PUBLIC", "DIRECT", "SECRET", "GLOBAL"]
 
 
 class EventCreate(BaseModel):

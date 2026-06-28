@@ -182,7 +182,9 @@ def seed_demo(db: Session, path: Path = DEFAULT_WORLD_FILE) -> dict[str, Any]:
             objective_json={"steps": item.objectives},
             base_dialogue=item.base_dialogue,
             base_hint=item.hint,
-            completion_event_json=item.completion.model_dump(),
+            completion_event_json={
+                "events": [event.model_dump() for event in item.all_completion_events()]
+            },
         )
         db.add(quest)
         quests[key] = quest
@@ -225,6 +227,8 @@ def seed_demo(db: Session, path: Path = DEFAULT_WORLD_FILE) -> dict[str, Any]:
 
     for key, item in definition.npcs.items():
         db.add(models.NPCQuest(npc_id=npcs[key].id, quest_id=quests[item.quest].id))
+        for quest_key in item.optional_quests:
+            db.add(models.NPCQuest(npc_id=npcs[key].id, quest_id=quests[quest_key].id))
 
     for item in definition.relationships:
         db.add(

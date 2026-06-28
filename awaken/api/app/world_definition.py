@@ -45,10 +45,14 @@ class QuestDefinition(BaseModel):
     priority: int = 0
     objectives: list[str] = Field(default_factory=list)
     completion: QuestCompletion
+    completion_events: list[QuestCompletion] = Field(default_factory=list)
     # Only essential quests need a base_dialogue — the LLM must weave it in.
     # Optional quests have no scripted line; the LLM decides whether to offer them.
     base_dialogue: str | None = None
     hint: str | None = None
+
+    def all_completion_events(self) -> list[QuestCompletion]:
+        return [self.completion, *self.completion_events]
 
 
 class PersonalityDefinition(BaseModel):
@@ -73,6 +77,7 @@ class NPCDefinition(BaseModel):
     role: str
     faction: str
     quest: str
+    optional_quests: list[str] = Field(default_factory=list)
     personality: PersonalityDefinition
     behavioral_prompt: str
     tracks: dict[str, TrackDefinition]
@@ -99,6 +104,18 @@ class EventRuleDefinition(BaseModel):
     interpretation_guidance: str = ""
 
 
+class DemoEventDefinition(BaseModel):
+    id: str
+    label: str
+    faction: str
+    event_type: str
+    summary: str
+    importance: float = Field(default=0.5, ge=0, le=1)
+    visibility: str = "PUBLIC"
+    payload_json: dict[str, Any] = Field(default_factory=dict)
+    quest_key: str | None = None
+
+
 class WorldDefinition(BaseModel):
     version: int = 1
     world: WorldInfo
@@ -107,6 +124,7 @@ class WorldDefinition(BaseModel):
     npcs: dict[str, NPCDefinition]
     relationships: list[RelationshipDefinition] = Field(default_factory=list)
     event_rules: dict[str, EventRuleDefinition] = Field(default_factory=dict)
+    demo_events: list[DemoEventDefinition] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_references(self):
@@ -115,9 +133,17 @@ class WorldDefinition(BaseModel):
                 raise ValueError(f"NPC {npc_key} references unknown faction {npc.faction}")
             if npc.quest not in self.quests:
                 raise ValueError(f"NPC {npc_key} references unknown quest {npc.quest}")
+            for quest_key in npc.optional_quests:
+                if quest_key not in self.quests:
+                    raise ValueError(f"NPC {npc_key} references unknown optional quest {quest_key}")
         for relationship in self.relationships:
             if relationship.from_npc not in self.npcs or relationship.to_npc not in self.npcs:
                 raise ValueError("relationship references an unknown NPC")
+        for event in self.demo_events:
+            if event.faction not in self.factions:
+                raise ValueError(f"demo event {event.id} references unknown faction {event.faction}")
+            if event.quest_key and event.quest_key not in self.quests:
+                raise ValueError(f"demo event {event.id} references unknown quest {event.quest_key}")
         return self
 
 

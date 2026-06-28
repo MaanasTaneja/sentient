@@ -39,12 +39,27 @@ export interface WorldDefinition {
       event_type: string;
       filters: Record<string, unknown>;
     };
+    completion_events?: {
+      event_type: string;
+      filters: Record<string, unknown>;
+    }[];
     base_dialogue?: string | null;
     hint?: string | null;
   }>;
   npcs: Record<string, unknown>;
   relationships: unknown[];
   event_rules: Record<string, unknown>;
+  demo_events: {
+    id: string;
+    label: string;
+    faction: string;
+    quest_key?: string | null;
+    event_type: string;
+    summary: string;
+    importance: number;
+    visibility: "PUBLIC" | "DIRECT" | "SECRET" | "GLOBAL";
+    payload_json?: Record<string, unknown>;
+  }[];
 }
 
 interface SeedPending {

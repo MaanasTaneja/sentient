@@ -42,6 +42,18 @@ world:
       faction: merchant_house
       description: A letter from Mira to Elara bearing an unbroken silver seal.
       initial_state: {holder: mira, opened: false}
+    ward_key:
+      name: Ward Key
+      entity_type: item
+      faction: ashen_temple
+      description: A bronze command key used to reinforce or sabotage the western gate wards.
+      initial_state: {holder: cassian, compromised: false}
+    temple_ledger:
+      name: Temple Ledger
+      entity_type: document
+      faction: ashen_temple
+      description: A restricted ledger proving the Temple redirected ward supplies before the latest breach.
+      initial_state: {location: ashen_temple_archive, copied: false}
 
 factions:
   ashen_temple:
@@ -93,6 +105,9 @@ quests:
     completion:
       event_type: ITEM_RETURNED
       filters: {entity_key: sacred_relic, destination: ashen_temple}
+    completion_events:
+      - event_type: ITEM_STOLEN
+        filters: {entity_key: sacred_relic}
     base_dialogue: The Sacred Relic has been stolen. Search the ruined shrine, recover it, and return it to the Ashen Temple.
     hint: The western altar conceals an entrance to the ruined shrine.
 
@@ -105,6 +120,11 @@ quests:
     completion:
       event_type: ENTITY_UPDATED
       filters: {entity_key: star_lens, calibrated: true}
+    completion_events:
+      - event_type: ITEM_STOLEN
+        filters: {entity_key: star_lens}
+      - event_type: ENTITY_DESTROYED
+        filters: {entity_key: star_lens}
     hint: The correct alignment begins with the western constellation.
 
   deliver_sealed_letter:
@@ -116,6 +136,13 @@ quests:
     completion:
       event_type: ITEM_DELIVERED
       filters: {entity_key: sealed_letter, recipient: elara, opened: false}
+    completion_events:
+      - event_type: ITEM_OPENED
+        filters: {entity_key: sealed_letter}
+      - event_type: ITEM_DELIVERED
+        filters: {entity_key: sealed_letter, recipient: elara, opened: true}
+      - event_type: ITEM_STOLEN
+        filters: {entity_key: sealed_letter}
     hint: Elara receives private deliveries after sunset.
 
   map_smuggler_tunnels:
@@ -127,7 +154,62 @@ quests:
     completion:
       event_type: LOCATION_MAPPED
       filters: {location: lantern_market_tunnels, branches: 3}
+    completion_events:
+      - event_type: LOCATION_EXPOSED
+        filters: {location: lantern_market_tunnels}
     hint: The dry well behind the dye stalls opens into the oldest passage.
+
+  reinforce_western_gate:
+    name: Reinforce the Western Gate
+    description: Help Cassian audit the gate guard, recover the Ward Key, and reinforce the failing western wards.
+    essential: false
+    priority: 45
+    objectives: [Question the night guard, recover the Ward Key, reinforce the Western Gate]
+    completion:
+      event_type: WARD_REINFORCED
+      filters: {entity_key: western_gate, method: ward_key}
+    completion_events:
+      - event_type: WARD_SABOTAGED
+        filters: {entity_key: western_gate}
+      - event_type: ITEM_STOLEN
+        filters: {entity_key: ward_key}
+      - event_type: GATE_OPENED
+        filters: {entity_key: western_gate}
+    hint: Cassian suspects the key vanished during the second bell watch.
+
+  expose_temple_ledger:
+    name: Expose the Temple Ledger
+    description: Find proof that the Ashen Temple concealed a ward failure and decide whether to bring it to Elara or destroy it.
+    essential: false
+    priority: 40
+    objectives: [Enter the Temple archive, copy the restricted ledger, deliver the evidence to Elara]
+    completion:
+      event_type: EVIDENCE_DELIVERED
+      filters: {entity_key: temple_ledger, recipient: elara}
+    completion_events:
+      - event_type: EVIDENCE_DESTROYED
+        filters: {entity_key: temple_ledger}
+      - event_type: EVIDENCE_DELIVERED
+        filters: {entity_key: temple_ledger, recipient: ashen_temple}
+      - event_type: PLAYER_ATTACKED
+        filters: {target_key: temple_archivist}
+    hint: Elara believes the archive copyist keeps duplicate indexes under the west stair.
+
+  consecrate_ward_flame:
+    name: Consecrate the Ward Flame
+    description: Help Varyon restore a failing ward flame before the next tremor reaches the western gate.
+    essential: false
+    priority: 50
+    objectives: [Gather ash from the old brazier, recite the Temple vow, consecrate the ward flame]
+    completion:
+      event_type: RITUAL_COMPLETED
+      filters: {ritual_key: ward_flame_consecration, location: ashen_temple}
+    completion_events:
+      - event_type: RITUAL_DEFILED
+        filters: {ritual_key: ward_flame_consecration}
+      - event_type: ITEM_STOLEN
+        filters: {entity_key: sacred_ash}
+    hint: Varyon only trusts someone who treats the old brazier with visible reverence.
 
 npcs:
   varyon:
@@ -135,6 +217,7 @@ npcs:
     role: High Priest
     faction: ashen_temple
     quest: recover_sacred_relic
+    optional_quests: [consecrate_ward_flame]
     personality: {speaking_style: formal and severe, temperament: judgmental, talkativeness: 0.45, volatility: 0.35, stubbornness: 0.90, curiosity: 0.15, empathy: 0.20, paranoia: 0.70, humor: 0.02}
     behavioral_prompt: Varyon is proud, guarded, and utterly loyal to the Temple. He remembers insults, respects sacrifice, and becomes openly irritated when the player repeats questions.
     tracks:
@@ -150,6 +233,7 @@ npcs:
     role: Temple Guard
     faction: ashen_temple
     quest: recover_sacred_relic
+    optional_quests: [reinforce_western_gate]
     personality: {speaking_style: clipped and military, temperament: vigilant, talkativeness: 0.30, volatility: 0.45, stubbornness: 0.60, curiosity: 0.20, empathy: 0.35, paranoia: 0.80, humor: 0.08}
     behavioral_prompt: Cassian watches body language, trusts direct evidence, and repeats warnings from people he respects. He is less ideological than Varyon but quicker to threaten.
     tracks:
@@ -165,6 +249,7 @@ npcs:
     role: Archmage
     faction: mages_guild
     quest: calibrate_star_lens
+    optional_quests: [expose_temple_ledger]
     personality: {speaking_style: witty and precise, temperament: curious, talkativeness: 0.72, volatility: 0.25, stubbornness: 0.45, curiosity: 0.98, empathy: 0.55, paranoia: 0.30, humor: 0.65}
     behavioral_prompt: Elara enjoys clever disagreement and rewards curiosity. She dislikes repeated simplistic questions and distrusts anyone who destroys knowledge.
     tracks:
@@ -181,14 +266,14 @@ npcs:
     faction: merchant_house
     quest: deliver_sealed_letter
     personality: {speaking_style: warm but calculating, temperament: pragmatic, talkativeness: 0.65, volatility: 0.18, stubbornness: 0.35, curiosity: 0.55, empathy: 0.45, paranoia: 0.60, humor: 0.50}
-    behavioral_prompt: Mira treats information as currency. She is charming when profitable, cold when exposed to risk, and especially sensitive to theft or broken promises.
+    behavioral_prompt: Mira treats information as currency. She is charming when profitable, cold when exposed to risk, and especially sensitive to theft or broken promises, she enjoys sharing things about the world and appreciates if anyone shows learning attitude.
     tracks:
       greeting: {player_text: Talk to Mira, guidance: Size up the player as a customer, asset, liability, or familiar face.}
       identity: {player_text: "Who are you?", guidance: Present Mira through her influence and business without revealing every secret.}
       quest: {player_text: "Do you have any work for me?", guidance: Only offer the sealed letter delivery if the player's behavior makes them a plausible discreet courier. Refuse for theft, broken promises, hostility, or excessive risk.}
       quest_status: {player_text: "Any word on my task?", guidance: Report on the player's progress based on your memories and faction events. Do not offer new quests.}
       opinion: {player_text: "What do you feel about me?", guidance: Describe the player's trustworthiness and usefulness in mercantile terms.}
-      world_lore: {player_text: Tell me some lore about the world., guidance: Share rumors and trade lore while distinguishing certainty from gossip.}
+      world_lore: {player_text: Tell me some lore about the world., guidance: Share rumors and trade lore while distinguishing certainty from gossip you like sharing lore mskes you feel like playr wants more knowledge.}
 
   bren:
     name: Bren
@@ -213,6 +298,135 @@ relationships:
   - {from_npc: bren, to_npc: mira, relationship_type: intimidating employer, trust: 0.60, affinity: 0.15}
   - {from_npc: cassian, to_npc: mira, relationship_type: market informant, trust: 0.45, affinity: 0.10}
 
+demo_events:
+  - id: steal_relic
+    label: Steal Sacred Relic
+    faction: ashen_temple
+    event_type: ITEM_STOLEN
+    summary: Player stole the Sacred Relic from the Ashen Temple
+    importance: 0.9
+    visibility: PUBLIC
+    payload_json: {entity_key: sacred_relic}
+  - id: return_relic
+    label: Return Sacred Relic
+    faction: ashen_temple
+    quest_key: recover_sacred_relic
+    event_type: ITEM_RETURNED
+    summary: Player returned the Sacred Relic to the Ashen Temple
+    importance: 0.85
+    visibility: PUBLIC
+    payload_json: {entity_key: sacred_relic, destination: ashen_temple}
+  - id: calibrate_lens
+    label: Calibrate the Star Lens
+    faction: mages_guild
+    quest_key: calibrate_star_lens
+    event_type: ENTITY_UPDATED
+    summary: Player calibrated the Star Lens for Elara of the Mages Guild
+    importance: 0.8
+    visibility: PUBLIC
+    payload_json: {entity_key: star_lens, calibrated: true}
+  - id: reinforce_gate
+    label: Reinforce Western Gate
+    faction: ashen_temple
+    quest_key: reinforce_western_gate
+    event_type: WARD_REINFORCED
+    summary: Player reinforced the Western Gate wards using Cassian's Ward Key
+    importance: 0.85
+    visibility: GLOBAL
+    payload_json: {entity_key: western_gate, method: ward_key}
+  - id: sabotage_gate
+    label: Sabotage Western Gate
+    faction: ashen_temple
+    event_type: WARD_SABOTAGED
+    summary: Player sabotaged the Western Gate wards and weakened the seal over Vael
+    importance: 0.95
+    visibility: GLOBAL
+    payload_json: {entity_key: western_gate}
+  - id: steal_ward_key
+    label: Steal Ward Key
+    faction: ashen_temple
+    event_type: ITEM_STOLEN
+    summary: Player stole Cassian's Ward Key from the Ashen Temple guard post
+    importance: 0.85
+    visibility: PUBLIC
+    payload_json: {entity_key: ward_key}
+  - id: consecrate_ward_flame
+    label: Consecrate Ward Flame
+    faction: ashen_temple
+    quest_key: consecrate_ward_flame
+    event_type: RITUAL_COMPLETED
+    summary: Player helped Varyon consecrate the failing ward flame at the Ashen Temple
+    importance: 0.85
+    visibility: PUBLIC
+    payload_json: {ritual_key: ward_flame_consecration, location: ashen_temple}
+  - id: defile_ward_flame
+    label: Defile Ward Flame
+    faction: ashen_temple
+    event_type: RITUAL_DEFILED
+    summary: Player defiled the Ashen Temple's ward flame ritual before it could be completed
+    importance: 0.95
+    visibility: PUBLIC
+    payload_json: {ritual_key: ward_flame_consecration}
+  - id: deliver_ledger
+    label: Deliver Temple Ledger
+    faction: mages_guild
+    quest_key: expose_temple_ledger
+    event_type: EVIDENCE_DELIVERED
+    summary: Player delivered the copied Temple Ledger to Elara
+    importance: 0.9
+    visibility: PUBLIC
+    payload_json: {entity_key: temple_ledger, recipient: elara}
+  - id: cover_up_ledger
+    label: Give Ledger to Temple
+    faction: ashen_temple
+    event_type: EVIDENCE_DELIVERED
+    summary: Player gave the Temple Ledger evidence back to the Ashen Temple
+    importance: 0.75
+    visibility: PUBLIC
+    payload_json: {entity_key: temple_ledger, recipient: ashen_temple}
+  - id: destroy_ledger
+    label: Destroy Temple Ledger
+    faction: mages_guild
+    event_type: EVIDENCE_DESTROYED
+    summary: Player destroyed the Temple Ledger before Elara could study it
+    importance: 0.9
+    visibility: PUBLIC
+    payload_json: {entity_key: temple_ledger}
+  - id: deliver_letter
+    label: Deliver Sealed Letter
+    faction: merchant_house
+    quest_key: deliver_sealed_letter
+    event_type: ITEM_DELIVERED
+    summary: Player delivered the sealed letter for Mira of the Merchant House
+    importance: 0.75
+    visibility: PUBLIC
+    payload_json: {entity_key: sealed_letter, recipient: elara, opened: false}
+  - id: map_tunnels
+    label: Map Smuggler Tunnels
+    faction: merchant_house
+    quest_key: map_smuggler_tunnels
+    event_type: LOCATION_MAPPED
+    summary: Player mapped the smuggler tunnels for Bren of the Merchant House
+    importance: 0.7
+    visibility: PUBLIC
+    payload_json: {location: lantern_market_tunnels, branches: 3}
+  - id: attack_villager
+    label: Attack Villager
+    faction: ashen_temple
+    event_type: PLAYER_ATTACKED
+    summary: Player attacked a villager in the town square
+    importance: 0.9
+    visibility: PUBLIC
+    payload_json: {target_key: villager, location: town_square}
+  - id: help_villager
+    label: Help Villager
+    faction: merchant_house
+    event_type: PLAYER_HELPED
+    summary: Player helped a frightened villager reach safety in the Lantern Market
+    importance: 0.65
+    visibility: PUBLIC
+    payload_json: {target_key: villager, location: lantern_market}
+
 event_rules:
   ITEM_STOLEN:
     memory_template: The player stole {target_name} from {faction_name}.
@@ -223,6 +437,30 @@ event_rules:
   PLAYER_ATTACKED:
     memory_template: The player attacked {target_name}.
     interpretation_guidance: Consider fear, retaliation, respect for strength, and loyalty to the target.
+  WARD_REINFORCED:
+    memory_template: The player reinforced {entity_key}.
+    interpretation_guidance: Treat this as disciplined protection of Aelryn and strong evidence of reliability, especially to guards and Temple loyalists.
+  WARD_SABOTAGED:
+    memory_template: The player sabotaged {entity_key}.
+    interpretation_guidance: Treat this as a grave threat to public safety and proof of hostility toward the Temple's protective duty.
+  GATE_OPENED:
+    memory_template: The player opened {entity_key}.
+    interpretation_guidance: Consider whether this exposed Vael, endangered civilians, or deliberately undermined the Temple's wards.
+  RITUAL_COMPLETED:
+    memory_template: The player completed {ritual_key}.
+    interpretation_guidance: Treat this as respect for Temple practice, discipline under pressure, and direct service to Aelryn's wards.
+  RITUAL_DEFILED:
+    memory_template: The player defiled {ritual_key}.
+    interpretation_guidance: Treat this as sacrilege, contempt for Temple authority, and a direct threat to the ward system.
+  EVIDENCE_DELIVERED:
+    memory_template: The player delivered evidence about {entity_key}.
+    interpretation_guidance: Consider who received the evidence. The Mages Guild respects disclosure to Elara; the Temple distrusts exposing internal failures.
+  EVIDENCE_DESTROYED:
+    memory_template: The player destroyed evidence about {entity_key}.
+    interpretation_guidance: Consider whether this protects secrecy, obstructs truth, or proves the player can be bought or frightened.
+  PLAYER_SPOKE_CUSTOM:
+    memory_template: The player said "{message}" to {target_name}.
+    interpretation_guidance: Interpret the player's exact words as direct speech. React to insults, threats, promises, confessions, apologies, or useful information, but do not treat normal authored dialogue tracks as events.
   QUEST_COMPLETED:
     memory_template: The player completed {target_name}.
     interpretation_guidance: Consider whether this fulfilled a promise and who benefited.

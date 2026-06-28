@@ -110,6 +110,22 @@ async def interact(
         if track is None:
             raise HTTPException(400, "track is not configured for this NPC")
 
+    if body.track == "custom":
+        db.add(
+            models.FactionEvent(
+                world_id=world_id,
+                faction_id=npc.faction_id,
+                event_type="PLAYER_SPOKE_CUSTOM",
+                actor_id=body.player_id,
+                target_npc_id=npc.id,
+                visibility="DIRECT",
+                summary=f"The player said to {npc.name}: {track['player_text']}",
+                payload_json={"message": track["player_text"]},
+                importance=0.5,
+            )
+        )
+        db.commit()
+
     # Load state and quests before sync so we can build the recall query immediately.
     # We use the pre-sync belief_summary to enrich the recall query (minor trade-off:
     # one component of the query uses the previous summary, which is fine).
@@ -117,8 +133,13 @@ async def interact(
 
     # Fetch quests first so their titles enrich the recall query
     all_quests = simulation.assigned_quests_for_npc(db, npc.id, body.player_id)
-    essential_quests = [_quest_dict(q) for q in all_quests if q.essential]
-    optional_quests = [_quest_dict(q) for q in all_quests if not q.essential]
+    offerable_quests = [
+        q
+        for q in all_quests
+        if db.get(models.PlayerQuest, (body.player_id, q.id)) is None
+    ]
+    essential_quests = [_quest_dict(q) for q in offerable_quests if q.essential]
+    optional_quests = [_quest_dict(q) for q in offerable_quests if not q.essential]
 
     # Build a rich recall query: what was asked + NPC role + belief summary + quest topics
     recall_parts = [track["player_text"], f"{npc.name} {npc.role}"]
@@ -171,7 +192,7 @@ async def interact(
     offered_quest = None
     quest_key_offered = result.get("quest_offered")
     if quest_key_offered:
-        matched = next((q for q in all_quests if q.stable_key == quest_key_offered), None)
+        matched = next((q for q in offerable_quests if q.stable_key == quest_key_offered), None)
         if matched:
             pq = db.get(models.PlayerQuest, (body.player_id, matched.id))
             if pq is None:
