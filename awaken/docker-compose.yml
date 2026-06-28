@@ -1,58 +1,6 @@
-services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: awaken
-      POSTGRES_PASSWORD: awaken
-      POSTGRES_DB: awaken
-    ports:
-      - "5432:5432"
-    volumes:
-      - awaken_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U awaken"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  api:
-    build:
-      context: .
-      dockerfile: api/Dockerfile
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql+psycopg://awaken:awaken@db:5432/awaken
-      REDIS_URL: redis://redis:6379/0
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./api:/app
-      - ./worlds:/worlds:ro
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-  game:
-    image: nginx:1.27-alpine
-    ports:
-      - "3000:80"
-    depends_on:
-      - api
-    volumes:
-      - ./game:/usr/share/nginx/html:ro
-
-volumes:
-  awaken_pgdata:
+# All backend services are deployed on InsForge.
+# API:   https://awaken-api-4e511c3c-4cd9-46ae-8bfa-2ae44789e433.fly.dev
+# Redis: awaken-redis-4e511c3c-4cd9-46ae-8bfa-2ae44789e433.fly.dev:6379
+# DB:    InsForge Postgres (m8767ztx.us-west)
+#
+# To run the backend locally again, restore the services from git history.

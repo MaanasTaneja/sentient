@@ -139,20 +139,8 @@ def sync_npc(db: Session, npc_id: str, player_id: str = "player_1") -> dict[str,
     if not events and not gossip:
         return {"npc_id": npc.id, "events_processed": 0, "state": current}
 
-    # Objective episodic memory never depends on model behavior. Stable Hydra IDs
-    # make retries idempotent if interpretation fails later in this sync.
-    hydra.store_memories(
-        npc.world_id,
-        npc.id,
-        [
-            {
-                "text": event["summary"],
-                "importance": event["importance"],
-                "source": f"observed_event:{event['id']}",
-            }
-            for event in event_dicts
-        ],
-    )
+    # Recall past belief memories from HydraDB — events are passed directly to the
+    # LLM as new_events and do not need to be stored in HydraDB first.
     historical_context = hydra.recall_context(
         npc.world_id,
         npc.id,

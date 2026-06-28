@@ -201,7 +201,7 @@ async def interact(
                 essential=matched.essential,
                 status=pq.status,
             )
-
+    #store coversatin and then lets show repsonse
     conversation = models.Conversation(
         npc_id=npc.id,
         player_id=body.player_id,

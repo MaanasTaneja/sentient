@@ -13,9 +13,15 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 // ── Shapes returned by the API ─────────────────────────────────────────────
 
 export interface SeedResult {
+  status?: "ready";
   world_id: string;
   factions: Record<string, string>;   // stable_key → uuid
   npcs: Record<string, string>;        // stable_key → uuid
+}
+
+interface SeedPending {
+  status: "idle" | "seeding" | "error";
+  error?: string | null;
 }
 
 export interface NPCState {
@@ -52,9 +58,20 @@ export interface WorldContext {
 // ── API calls ──────────────────────────────────────────────────────────────
 
 export const api = {
-  /** Call once on mount. Fetches existing world IDs (server seeds on startup). */
+  /** Call once on mount. Polls while the server is still seeding in the background. */
   async seed(): Promise<SeedResult> {
-    return req<SeedResult>("/seed");
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const result = await req<SeedResult | SeedPending>("/seed");
+      if (result.status === "seeding" || result.status === "idle") {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
+      if (result.status === "error") {
+        throw new Error(result.error || "World seed failed");
+      }
+      return result;
+    }
+    throw new Error("World seed timed out");
   },
 
   /** GET /worlds/{worldId}/npcs/{npcUUID}/player-state */

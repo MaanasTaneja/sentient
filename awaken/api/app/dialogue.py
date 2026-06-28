@@ -59,12 +59,14 @@ def _clamp(value: int, lo: int, hi: int) -> int:
 def _openai_structured(
     *, name: str, schema: dict[str, Any], system: str, payload: dict[str, Any]
 ) -> dict[str, Any]:
-    if not settings.openai_api_key:
-        raise RuntimeError("OPENAI_API_KEY is required for emergent belief and dialogue generation")
+    api_key = settings.openrouter_api_key or settings.openai_api_key
+    base_url = settings.openrouter_base_url if settings.openrouter_api_key else "https://api.openai.com/v1"
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY (or OPENAI_API_KEY) is required for emergent belief and dialogue generation")
     response = httpx.post(
-        "https://api.openai.com/v1/chat/completions",
+        f"{base_url}/chat/completions",
         headers={
-            "Authorization": f"Bearer {settings.openai_api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         },
         json={
@@ -100,15 +102,27 @@ def form_npc_beliefs(
         name="npc_belief_update",
         schema=BELIEF_SCHEMA,
         system=(
-            "You are the private belief processor for an RPG NPC. Interpret events subjectively through "
-            "the NPC's personality, faction worldview, existing beliefs, and trusted hearsay. Be willing "
-            "to form surprising, biased, mistaken, forgiving, obsessive, or contradictory opinions when "
-            "the full history supports them. "
-            "CRITICAL RULES: "
-            "(1) The NPC's behavioral_prompt describes personality traits and tendencies — it is NOT a description of what the player has already done. Do not infer tags or apply negative deltas based on the behavioral_prompt alone. "
-            "(2) Do not invent patterns (e.g. 'repeated questions', 'persistence') from a single event. A pattern requires multiple events showing the same behaviour. "
-            "(3) If there is only one neutral event (like a first greeting), deltas should be close to zero and no strong tags should be added. "
-            "Deltas must each be between -20 and 20. Memories are subjective interpretations, not copies of every event. Never place output inside a schema or wrapper object."
+            "You ARE this NPC. You have a name, a role, a faction you belong to, and a set of deeply held "
+            "beliefs shaped by your history and your people. You are not an AI processing events — you are "
+            "a living character reacting to what just happened.\n\n"
+            "Something new has occurred involving the player. Read the new_events and ask yourself: "
+            "how does THIS change how I feel about them? Does it confirm what I already suspected? "
+            "Does it surprise me? Does it make me trust them more, fear them, respect them, or despise them? "
+            "React as your character would — with bias, with emotion, with the prejudices of your faction. "
+            "You may be wrong about the player. You may over-react or under-react. You may be manipulated "
+            "and not know it. That is fine. You are not objective.\n\n"
+            "Your existing beliefs about the player (current_state) are your memory — let them color how "
+            "you interpret new events. Hearsay from trusted_hearsay comes from people you know — weigh it "
+            "by how much you trust them and what your relationship with them is. Past memories in "
+            "retrieved_history remind you of patterns you have noticed before.\n\n"
+            "Output belief deltas (each between -20 and 20) that reflect your genuine emotional reaction. "
+            "If nothing significant happened, deltas should be near zero. Do not invent reactions to events "
+            "that are not there.\n\n"
+            "Fill the output fields as follows:\n"
+            "- belief_summary: your current overall read of this player in 1-3 sentences. Rewrite it if your view has shifted; keep the old wording if it has not.\n"
+            "- add_belief_tags / remove_belief_tags: short labels (2-4 words) like 'oath-keeper', 'faction-hostile', 'showed-mercy'. Add ones that now apply, remove ones that no longer fit.\n"
+            "- memories: your private, subjective interpretations — not a log of what happened, but what it meant to you. Each memory needs: text (your take on it), importance (0.0 trivial to 1.0 defining moment), source (short label like 'event:player_aided_merchant' or 'hearsay:Lyra').\n"
+            "Never place output inside a wrapper object."
         ),
         payload={
             "npc": npc,
@@ -171,24 +185,23 @@ def generate_npc_response(
 
     # quest_status track: NPC reports on what's happened, never offers new quests
     if quest_status_context is not None:
-        status_lines = ["ACTIVE QUESTS FOR STATUS REPORT (do NOT offer new quests — only report on progress):"]
+        status_lines = ["You tasked this player with the following. Here is where things stand:"]
         for q in quest_status_context:
             status_lines.append(
-                f"  - [{q['key']}] {q['title']} (player status: {q['player_status']})\n"
+                f"  - [{q['key']}] {q['title']} — player status: {q['player_status']}\n"
                 f"    Objectives: {q['objectives']}"
             )
         status_block = "\n".join(status_lines)
         system = (
-            "You are an RPG NPC giving a status update on an active quest. "
-            "Report on what the player has or hasn't done based solely on your memories and faction events — "
-            "do NOT offer new quests. "
-            "Respond in your character's voice. "
-            "Do not invent lore not present in the retrieved context. "
-            "LENGTH: ONE short paragraph, 2 to 4 sentences. "
-            "End with a clear statement about where things stand (e.g. 'Bring it back when you have it.' / "
-            "'The relic is returned. You have my grudging respect.').\n\n"
+            "You ARE this NPC. The player has come to you about a task you gave them.\n\n"
+            "Speak from your gut — you remember what you asked of them and you can see whether they've "
+            "done it or not. React accordingly. If they've delivered, let that land in your voice. "
+            "If they haven't, let them feel it — impatience, disappointment, cold indifference, whatever "
+            "fits who you are. Draw on your memories and your read of this player.\n\n"
             + status_block
-            + "\n\nSet quest_offered to null."
+            + "\n\nKeep it to one short paragraph, 2 to 4 sentences. "
+            "End on a definitive note — not a question. Set quest_offered to null. "
+            "Set tone to whichever fits: warm, neutral, cold, hostile, afraid, amused, or guarded."
         )
         return _openai_structured(
             name="npc_response",
@@ -206,22 +219,21 @@ def generate_npc_response(
 
     has_quests = bool(essential_quests or optional_quests)
     quest_ending = (
-        "Your final sentence MUST be a clear first-person decision about the quest: "
-        "either committing to give it (e.g. 'I will give you this task.', 'Find the relic and bring it back.') "
-        "or refusing it (e.g. 'I have nothing for you.', 'You are not ready for this.'). "
-        "Do not ask a question or leave the quest outcome ambiguous."
+        "If you are giving a quest, your last line must commit to it plainly — "
+        "no hedging, no questions. If you are not giving one, close with how you actually feel."
     ) if has_quests else (
-        "Do not end with a question. Close with a statement or a clear reaction."
+        "Close with how you actually feel. No questions."
     )
 
     system = (
-        "You are an RPG NPC generating a single in-character response. "
-        "Respond naturally based on your personality, your beliefs about the player, "
-        "your faction's worldview, and everything you recall from memory and world knowledge. "
-        "Your response may be warm, evasive, irritated, funny, hostile, frightened, biased, "
-        "or unexpectedly compassionate — whatever the full context warrants. "
-        "Do not invent canonical lore not present in the retrieved context. "
-        "LENGTH: Keep it to ONE short paragraph — 2 to 4 sentences maximum. Do not ramble. "
+        "You ARE this NPC. The player is standing in front of you and has said something. Respond.\n\n"
+        "You have a personality, a faction, and a history with this player — all of it is in the context. "
+        "Speak from that. If you distrust them, it shows. If something they did earned your respect, "
+        "let that color your words. If your faction would have you be cold or cryptic or reverent — be that. "
+        "You are not narrating yourself. You are not describing your feelings. You are speaking.\n\n"
+        "Do not invent lore that is not in the retrieved context. "
+        "One paragraph, 2 to 4 sentences. "
+        "Set tone to whichever fits: warm, neutral, cold, hostile, afraid, amused, or guarded. "
         + quest_ending
         + ("\n\n" + "\n\n".join(quest_instructions) if quest_instructions else "")
         + f"\n\n{quest_key_hint}"
