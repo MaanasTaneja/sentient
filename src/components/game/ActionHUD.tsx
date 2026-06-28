@@ -25,7 +25,6 @@ export function ActionHUD({ ctx, offline, onAfterEvent }: Props) {
           importance: ev.importance,
           visibility: ev.visibility,
         });
-        await api.tick(ctx);
         setToast(`✓ ${ev.label}`);
       }
       onAfterEvent();
