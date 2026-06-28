@@ -110,22 +110,6 @@ async def interact(
         if track is None:
             raise HTTPException(400, "track is not configured for this NPC")
 
-    # Log the interaction as a faction event so other NPCs can learn about it
-    db.add(
-        models.FactionEvent(
-            world_id=world_id,
-            faction_id=npc.faction_id,
-            event_type="PLAYER_ASKED_TRACK",
-            actor_id=body.player_id,
-            target_npc_id=npc.id,
-            visibility="DIRECT",
-            summary=f"The player asked {npc.name} '{track['player_text']}'.",
-            payload_json={"track_id": body.track},
-            importance=0.4,
-        )
-    )
-    db.commit()
-
     # Load state and quests before sync so we can build the recall query immediately.
     # We use the pre-sync belief_summary to enrich the recall query (minor trade-off:
     # one component of the query uses the previous summary, which is fine).

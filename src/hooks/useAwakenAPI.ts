@@ -19,6 +19,34 @@ export interface SeedResult {
   npcs: Record<string, string>;        // stable_key → uuid
 }
 
+export interface WorldDefinition {
+  version: number;
+  world: {
+    id: string;
+    name: string;
+    description: string;
+    lore: Record<string, unknown>;
+    entities: Record<string, Record<string, unknown>>;
+  };
+  factions: Record<string, unknown>;
+  quests: Record<string, {
+    name: string;
+    description: string;
+    essential: boolean;
+    priority: number;
+    objectives: string[];
+    completion: {
+      event_type: string;
+      filters: Record<string, unknown>;
+    };
+    base_dialogue?: string | null;
+    hint?: string | null;
+  }>;
+  npcs: Record<string, unknown>;
+  relationships: unknown[];
+  event_rules: Record<string, unknown>;
+}
+
 interface SeedPending {
   status: "idle" | "seeding" | "error";
   error?: string | null;
@@ -58,6 +86,11 @@ export interface WorldContext {
 // ── API calls ──────────────────────────────────────────────────────────────
 
 export const api = {
+  /** GET /world-definition — parsed YAML world definition. */
+  async getWorldDefinition(): Promise<WorldDefinition> {
+    return req<WorldDefinition>("/world-definition");
+  },
+
   /** Call once on mount. Polls while the server is still seeding in the background. */
   async seed(): Promise<SeedResult> {
     for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -117,7 +150,13 @@ export const api = {
   async fireEvent(
     ctx: WorldContext,
     factionKey: string,
-    payload: { event_type: string; summary: string; importance: number; visibility: string },
+    payload: {
+      event_type: string;
+      summary: string;
+      importance: number;
+      visibility: string;
+      payload_json?: Record<string, unknown>;
+    },
   ) {
     const faction_id = ctx.factionIds[factionKey];
     if (!faction_id) throw new Error(`unknown faction key: ${factionKey}`);

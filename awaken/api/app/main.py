@@ -89,6 +89,13 @@ def health():
     return {"ok": True}
 
 
+@app.get("/world-definition")
+def world_definition():
+    from .world_definition import load_world_definition
+
+    return load_world_definition(DEFAULT_WORLD_FILE).model_dump()
+
+
 @app.get("/seed")
 def get_seed(db: Session = Depends(get_db)):
     """Return the current world context (IDs only) without re-seeding."""

@@ -1,19 +1,21 @@
 import { useState } from "react";
-import { EVENTS } from "@/constants/events";
-import { api, WorldContext } from "@/hooks/useAwakenAPI";
+import { getWorldEvents } from "@/constants/events";
+import { api, WorldContext, WorldDefinition } from "@/hooks/useAwakenAPI";
 
 interface Props {
   ctx: WorldContext | null;
+  worldDefinition: WorldDefinition | null;
   offline: boolean;
   onAfterEvent: () => void;
 }
 
-export function ActionHUD({ ctx, offline, onAfterEvent }: Props) {
+export function ActionHUD({ ctx, worldDefinition, offline, onAfterEvent }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const events = getWorldEvents(worldDefinition);
 
   async function fire(evId: string) {
-    const ev = EVENTS.find((e) => e.id === evId)!;
+    const ev = events.find((e) => e.id === evId)!;
     setBusy(evId);
     try {
       if (offline || !ctx) {
@@ -24,6 +26,7 @@ export function ActionHUD({ ctx, offline, onAfterEvent }: Props) {
           summary: ev.summary,
           importance: ev.importance,
           visibility: ev.visibility,
+          payload_json: ev.payload_json,
         });
         setToast(`✓ ${ev.label}`);
       }
@@ -50,7 +53,7 @@ export function ActionHUD({ ctx, offline, onAfterEvent }: Props) {
           Player Actions
         </h3>
         <div className="space-y-1.5">
-          {EVENTS.map((e) => (
+          {events.map((e) => (
             <button
               key={e.id}
               disabled={busy !== null}

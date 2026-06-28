@@ -226,6 +226,3 @@ event_rules:
   QUEST_COMPLETED:
     memory_template: The player completed {target_name}.
     interpretation_guidance: Consider whether this fulfilled a promise and who benefited.
-  PLAYER_ASKED_TRACK:
-    memory_template: The player selected the {track_id} conversation track with {target_name}.
-    interpretation_guidance: Interpret the interaction using the NPC's full history, personality, current beliefs, and retrieved memories.

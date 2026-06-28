@@ -6,7 +6,7 @@ import { NPCPanel } from "@/components/game/NPCPanel";
 import { ActionHUD } from "@/components/game/ActionHUD";
 import { DialogueBox } from "@/components/game/DialogueBox";
 import { useNPCStates } from "@/hooks/useNPCStates";
-import { api, WorldContext } from "@/hooks/useAwakenAPI";
+import { api, WorldContext, WorldDefinition } from "@/hooks/useAwakenAPI";
 import { NPCS } from "@/constants/npcs";
 
 export const Route = createFileRoute("/")({
@@ -21,6 +21,7 @@ export const Route = createFileRoute("/")({
 
 function AelrynPage() {
   const [ctx, setCtx] = useState<WorldContext | null>(null);
+  const [worldDefinition, setWorldDefinition] = useState<WorldDefinition | null>(null);
   const [seedError, setSeedError] = useState(false);
   const [nearby, setNearby] = useState<string | null>(null);
   const [activeNpc, setActiveNpc] = useState<string | null>(null);
@@ -29,8 +30,11 @@ function AelrynPage() {
 
   // Seed world on mount — get real world + NPC + faction UUIDs
   useEffect(() => {
-    api.seed()
-      .then((res) => setCtx({ worldId: res.world_id, npcIds: res.npcs, factionIds: res.factions }))
+    Promise.all([api.seed(), api.getWorldDefinition()])
+      .then(([res, definition]) => {
+        setCtx({ worldId: res.world_id, npcIds: res.npcs, factionIds: res.factions });
+        setWorldDefinition(definition);
+      })
       .catch(() => setSeedError(true));
   }, []);
 
@@ -67,7 +71,7 @@ function AelrynPage() {
         </div>
       )}
 
-      <ActionHUD ctx={ctx} offline={isOffline} onAfterEvent={refreshAll} />
+      <ActionHUD ctx={ctx} worldDefinition={worldDefinition} offline={isOffline} onAfterEvent={refreshAll} />
       <NPCPanel states={states} changed={changed} offline={isOffline} />
 
       {/* Top-left title + offline toast */}
