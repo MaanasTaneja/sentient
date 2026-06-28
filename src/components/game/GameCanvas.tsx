@@ -3,12 +3,13 @@ import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
 import { NPCS } from "@/constants/npcs";
 
-import skyUrl from "@/assets/game/sky.jpg";
-import cobbleUrl from "@/assets/game/cobble.jpg";
+import grassUrl from "@/assets/game/grass.png";
 import stoneUrl from "@/assets/game/stone.jpg";
 import mageUrl from "@/assets/game/mage.jpg";
 import woodUrl from "@/assets/game/wood.jpg";
 import roofUrl from "@/assets/game/roof.jpg";
+import tree1Url from "@/assets/game/tree1.png";
+import tree4Url from "@/assets/game/tree4.png";
 
 interface Props {
   paused: boolean;
@@ -34,8 +35,8 @@ export function GameCanvas({ paused, onNearbyChange, onInteract }: Props) {
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a1a);
-    scene.fog = new THREE.FogExp2(0x0a0a1a, 0.04);
+    scene.background = new THREE.Color(0x7a8e9e);
+    scene.fog = new THREE.FogExp2(0x8fa0ae, 0.022);
 
     const camera = new THREE.PerspectiveCamera(72, w() / h(), 0.1, 200);
     camera.position.set(0, 1.7, 6);
@@ -57,17 +58,67 @@ export function GameCanvas({ paused, onNearbyChange, onInteract }: Props) {
       return t;
     };
 
-    // Skybox (inverted sphere)
-    const skyTex = texLoader.load(skyUrl);
-    skyTex.colorSpace = THREE.SRGBColorSpace;
-    skyTex.mapping = THREE.EquirectangularReflectionMapping;
-    const skyGeo = new THREE.SphereGeometry(80, 40, 20);
-    const skyMat = new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false, depthWrite: false });
-    const skyMesh = new THREE.Mesh(skyGeo, skyMat);
-    scene.add(skyMesh);
+    // Procedural cloud texture factory
+    function makeCloudTex(seed: number): THREE.CanvasTexture {
+      const canvas = document.createElement("canvas");
+      canvas.width = 512; canvas.height = 256;
+      const ctx = canvas.getContext("2d")!;
+      ctx.clearRect(0, 0, 512, 256);
+      const rng = (n: number) => Math.abs(Math.sin(seed * 127.1 + n * 311.7) * 43758.5453) % 1;
+      for (let i = 0; i < 10; i++) {
+        const gx = 40 + rng(i * 2) * 430;
+        const gy = 30 + rng(i * 2 + 1) * 200;
+        const rw = 50 + rng(i + 0.3) * 90;
+        const rh = 25 + rng(i + 0.7) * 45;
+        const darkness = 155 + Math.floor(rng(i + 1.5) * 50);
+        const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, Math.max(rw, rh));
+        grad.addColorStop(0, `rgba(${darkness},${darkness + 5},${darkness + 8},0.92)`);
+        grad.addColorStop(0.55, `rgba(${darkness - 15},${darkness - 10},${darkness - 8},0.55)`);
+        grad.addColorStop(1, `rgba(130,135,140,0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(gx, gy, rw, rh, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    // Cloud planes
+    const cloudMeshes: THREE.Mesh[] = [];
+    for (let i = 0; i < 18; i++) {
+      const rng = (n: number) => Math.abs(Math.sin(i * 92.3 + n * 47.1) * 9999.1) % 1;
+      const mat = new THREE.MeshBasicMaterial({
+        map: makeCloudTex(i),
+        transparent: true,
+        depthWrite: false,
+        fog: false,
+      });
+      const w = 38 + rng(1) * 35;
+      const h = 14 + rng(2) * 10;
+      const cloud = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+      cloud.rotation.x = -Math.PI / 2;
+      cloud.position.set((rng(3) - 0.5) * 110, 28 + rng(4) * 18, (rng(5) - 0.5) * 110);
+      cloud.userData.speed = 0.4 + rng(6) * 0.7;
+      scene.add(cloud);
+      cloudMeshes.push(cloud);
+    }
+
+    // Rain particles
+    const RAIN_COUNT = 3000;
+    const rainPositions = new Float32Array(RAIN_COUNT * 3);
+    for (let i = 0; i < RAIN_COUNT; i++) {
+      rainPositions[i * 3]     = (Math.random() - 0.5) * 110;
+      rainPositions[i * 3 + 1] = Math.random() * 55;
+      rainPositions[i * 3 + 2] = (Math.random() - 0.5) * 110;
+    }
+    const rainGeo = new THREE.BufferGeometry();
+    rainGeo.setAttribute("position", new THREE.BufferAttribute(rainPositions, 3));
+    const rainMat = new THREE.PointsMaterial({ color: 0x9ab0c0, size: 0.07, transparent: true, opacity: 0.35, sizeAttenuation: true });
+    const rain = new THREE.Points(rainGeo, rainMat);
+    scene.add(rain);
 
     // Ground
-    const groundTex = loadTex(cobbleUrl, 20);
+    const groundTex = loadTex(grassUrl, 20);
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(120, 120),
       new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.95 })
@@ -76,12 +127,16 @@ export function GameCanvas({ paused, onNearbyChange, onInteract }: Props) {
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // Lighting
-    const ambient = new THREE.AmbientLight(0x223355, 0.45);
+    // Lighting — overcast daytime
+    const ambient = new THREE.AmbientLight(0xc8d8e4, 1.05);
     scene.add(ambient);
-    const moon = new THREE.DirectionalLight(0x8aa0d6, 0.35);
-    moon.position.set(20, 40, 10);
-    scene.add(moon);
+    const sun = new THREE.DirectionalLight(0xb8ccd8, 0.55);
+    sun.position.set(-30, 70, 20);
+    scene.add(sun);
+    // Soft fill from below (bounced light off wet ground)
+    const fill = new THREE.DirectionalLight(0x8899aa, 0.18);
+    fill.position.set(0, -10, 0);
+    scene.add(fill);
 
     // Helper to build a building
     interface BuildingOpts {
@@ -138,12 +193,12 @@ export function GameCanvas({ paused, onNearbyChange, onInteract }: Props) {
         flame.position.set(offset, 2.4, bd / 2 + 0.2);
         group.add(flame);
 
-        const light = new THREE.PointLight(torchColor, 2.2, 14, 1.6);
+        const light = new THREE.PointLight(torchColor, 1.1, 10, 1.8);
         light.position.set(offset, 2.5, bd / 2 + 0.3);
         group.add(light);
 
         // Store for flicker
-        (light as any).userData.base = 2.2;
+        (light as any).userData.base = 1.1;
         flickerLights.push(light);
       }
 
@@ -173,6 +228,36 @@ export function GameCanvas({ paused, onNearbyChange, onInteract }: Props) {
       pos: [0, 0, -20], size: [10, 4, 6], wallTex: woodTex, roofTex,
       torchColor: 0xffb060, label: "Market",
     });
+
+    // Tree billboard sprites — green only, clustered
+    const treeUrls = [tree1Url, tree4Url];
+    const treeTex = treeUrls.map((url) => {
+      const t = texLoader.load(url);
+      t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    });
+    const treePositions: [number, number, number][] = [
+      // left cluster
+      [-28,-8,0],[-30,-6,1],[-26,-9,1],[-29,-11,0],[-31,-7,1],
+      // left-back cluster
+      [-26,14,0],[-28,16,1],[-24,15,0],[-27,12,1],[-25,17,0],
+      // right cluster
+      [ 28,-8,0],[ 30,-6,1],[ 26,-9,0],[ 29,-11,1],[ 31,-7,0],
+      // right-back cluster
+      [ 26,14,1],[ 28,16,0],[ 24,15,1],[ 27,12,0],[ 25,17,1],
+      // back cluster around market
+      [-10,24,0],[ 0,26,1],[ 10,24,0],[-6,27,1],[ 6,27,0],[ 12,22,1],[-12,22,0],
+      // front sides
+      [-24,-18,0],[-22,-20,1],[ 24,-18,1],[ 22,-20,0],
+    ];
+    for (const [tx, tz, variant] of treePositions) {
+      const mat = new THREE.SpriteMaterial({ map: treeTex[variant], transparent: true, alphaTest: 0.1, depthWrite: false });
+      const sprite = new THREE.Sprite(mat);
+      const scale = 6.5 + Math.abs(Math.sin(tx * 0.7 + tz)) * 2;
+      sprite.scale.set(scale * 0.65, scale, 1);
+      sprite.position.set(tx, scale / 2, tz);
+      scene.add(sprite);
+    }
 
     // NPC sprites + glow lights
     interface NpcEntry { id: string; sprite: THREE.Sprite; light: THREE.PointLight; }
@@ -287,8 +372,19 @@ export function GameCanvas({ paused, onNearbyChange, onInteract }: Props) {
         n.light.intensity = 1.2 + Math.sin(t * 2 + n.sprite.position.x) * 0.25;
       }
 
-      // Sky subtle rotation
-      skyMesh.rotation.y += dt * 0.005;
+      // Cloud drift
+      for (const c of cloudMeshes) {
+        c.position.x += dt * (c.userData.speed as number);
+        if (c.position.x > 70) c.position.x = -70;
+      }
+
+      // Rain fall
+      const rPos = rain.geometry.attributes.position.array as Float32Array;
+      for (let i = 0; i < RAIN_COUNT; i++) {
+        rPos[i * 3 + 1] -= dt * 14;
+        if (rPos[i * 3 + 1] < 0) rPos[i * 3 + 1] = 55;
+      }
+      rain.geometry.attributes.position.needsUpdate = true;
 
       // Nearby NPC raycast (look ray from camera)
       camera.getWorldDirection(playerDir);
@@ -334,6 +430,13 @@ export function GameCanvas({ paused, onNearbyChange, onInteract }: Props) {
       controls.dispose();
       renderer.dispose();
       mount.removeChild(renderer.domElement);
+      rainGeo.dispose();
+      rainMat.dispose();
+      for (const c of cloudMeshes) {
+        (c.material as THREE.MeshBasicMaterial).map?.dispose();
+        (c.material as THREE.MeshBasicMaterial).dispose();
+        c.geometry.dispose();
+      }
       scene.traverse((o) => {
         const m = o as THREE.Mesh;
         if (m.geometry) m.geometry.dispose();
